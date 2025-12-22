@@ -54,7 +54,7 @@ st.markdown("""
     <div class="main-header">
         <h1>🚀 أتمتة حجوزات الأونلاين</h1>
         <p>نظام ذكي للتعامل مع المراجع والحجوزات</p>
-        <p style="font-size: 0.9em; opacity: 0.9;">WebBeds | EET Global | العطايا | وجميع الشركات الأخرى</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">WebBeds | EET Global | العطايا | Safa | وجميع الشركات الأخرى</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -73,7 +73,7 @@ with col1:
     st.info("💼 **WebBeds**\nللتعامل مع حجوزات WebBeds")
 
 with col2:
-    st.info("🏢 **Extranet**\nللشركات الأخرى (EET Global، العطايا، إلخ)")
+    st.info("🏢 **Extranet**\nللشركات الأخرى (EET Global، العطايا، Safa، إلخ)")
 
 with col3:
     st.info("📊 معلومات إضافية\nسيتم عرض تفاصيل المقارنة")
@@ -406,7 +406,7 @@ else:
     
     company_name = st.text_input(
         "📍 أدخل اسم الشركة:",
-        placeholder="مثال: Almatar, EET Global, Traveasy, TDS, GTE, العطايا",
+        placeholder="مثال: Almatar, EET Global, Traveasy, TDS, GTE, العطايا, Safa",
         help="أدخل اسم الشركة التي تريد معالجتها"
     )
     
@@ -603,3 +603,25 @@ else:
                            "4. جرّب تحويل الملف إلى CSV وحاول مرة أخرى")
     else:
         st.info("📤 الرجاء تحميل كلا الملفين (ملف الشركة وملف جود) لبدء المقارنة")
+
+# قسم معلومات الشركات والروابط
+st.markdown("---")
+st.markdown("""
+    <div class="section-header">
+        <h3>🔗 روابط الشركات المدعومة</h3>
+        <p>اضغط على اسم الشركة للدخول إلى نظام Extranet الخاص بها</p>
+    </div>
+""", unsafe_allow_html=True)
+
+companies_links = [
+    ("🌍 EET Global", "https://www.eetglobal.com/extranet"),
+    ("🏨 العطايا", "https://www.alatayadmc.com/extranet"),
+    ("✈️ Safa Travel", "https://www.safa-travel.net/Extranet/alojamiento/listadoReservas.aspx?alojamiento=1496&idcco=2515&verVigente=1"),
+]
+
+col1, col2, col3 = st.columns(3)
+cols = [col1, col2, col3]
+
+for idx, (company, url) in enumerate(companies_links):
+    with cols[idx % 3]:
+        st.markdown(f'<a href="{url}" target="_blank"><button style="width:100%; padding:12px; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">{company}</button></a>', unsafe_allow_html=True)
