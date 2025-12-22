@@ -1,22 +1,36 @@
 {
   "manifest_version": 3,
-  "name": "WebBeds Reference Automation",
-  "version": "1.0",
-  "description": "أتمتة إضافة مراجع WebBeds",
+  "name": "WebBeds & Almatar Reference Automation",
+  "version": "2.0",
+  "description": "أتمتة إضافة مراجع WebBeds و Almatar",
   "permissions": [
     "activeTab",
     "storage"
   ],
   "host_permissions": [
-    "https://extranet.webbeds.com/*"
+    "https://extranet.webbeds.com/*",
+    "https://portal.arabiabeds.com/*",
+    "https://www.eetglobal.com/*",
+    "https://hotels.holidayme.com/*",
+    "https://go.tdstravel.com/*",
+    "https://www.gte.travel/*",
+    "https://www.attaya.travel/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "WebBeds Automation"
+    "default_title": "WebBeds & Almatar Automation"
   },
   "content_scripts": [
     {
-      "matches": ["https://extranet.webbeds.com/*"],
+      "matches": [
+        "https://extranet.webbeds.com/*",
+        "https://portal.arabiabeds.com/*",
+        "https://www.eetglobal.com/*",
+        "https://hotels.holidayme.com/*",
+        "https://go.tdstravel.com/*",
+        "https://www.gte.travel/*",
+        "https://www.attaya.travel/*"
+      ],
       "js": ["content.js"]
     }
   ],

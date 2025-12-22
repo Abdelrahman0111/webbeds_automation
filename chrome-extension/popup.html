@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <style>
         body {
-            width: 380px;
+            width: 400px;
             padding: 15px;
             font-family: Arial, sans-serif;
             direction: rtl;
@@ -17,17 +17,35 @@
             padding-bottom: 10px;
             border-bottom: 2px solid #d32f2f;
         }
-        .logo-header img {
-            max-width: 120px;
-            height: auto;
-            margin-bottom: 10px;
-        }
         .header {
             text-align: center;
             color: #d32f2f;
             margin: 0;
             font-size: 18px;
             font-weight: bold;
+        }
+        .platform-selector {
+            margin: 15px 0;
+            text-align: center;
+        }
+        .platform-btn {
+            background: #fff;
+            border: 2px solid #d32f2f;
+            color: #d32f2f;
+            padding: 6px 12px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 15px;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        .platform-btn.active {
+            background: #d32f2f;
+            color: white;
+        }
+        .platform-btn:hover {
+            background: #d32f2f;
+            color: white;
         }
         .upload-area {
             border: 2px dashed #ccc;
@@ -95,17 +113,39 @@
             width: 0%;
             transition: width 0.3s;
         }
+        .platform-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <div class="logo-header">
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Crect width='200' height='50' fill='%23d32f2f'/%3E%3Ctext x='50' y='35' font-family='Arial' font-size='28' font-weight='bold' fill='white'%3EWebBeds%3C/text%3E%3C/svg%3E" alt="WebBeds">
-        <div class="header">🤖 أتمتة WebBeds</div>
+        <div class="header">🤖 أتمتة المراجع</div>
+        <p style="margin: 5px 0; font-size: 12px; color: #666;">WebBeds & Almatar</p>
+    </div>
+
+    <div class="platform-selector">
+        <button class="platform-btn active" data-platform="webbeds">WebBeds</button>
+        <button class="platform-btn" data-platform="almatar">Almatar</button>
+        <button class="platform-btn" data-platform="eet">EET Global</button>
+        <button class="platform-btn" data-platform="traveasy">Traveasy</button>
+        <button class="platform-btn" data-platform="tds">TDS</button>
+        <button class="platform-btn" data-platform="gte">GTE</button>
+        <button class="platform-btn" data-platform="alataya">العطايا</button>
+    </div>
+
+    <div class="platform-info" id="platformInfo">
+        <strong>WebBeds:</strong> تأكد من أنك في صفحة الحجوزات
     </div>
 
     <div class="upload-area" id="uploadArea">
-        <p>📁 اسحب ملف Excel هنا أو اضغط للاختيار</p>
-        <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls,.csv">
+        <p>📁 اسحب ملف CSV هنا أو اضغط للاختيار</p>
+        <input type="file" id="fileInput" class="file-input" accept=".csv">
     </div>
 
     <div id="fileInfo" style="display: none;">
@@ -128,7 +168,6 @@
         <button id="downloadBtn" class="btn">📥 تحميل التقرير</button>
     </div>
 
-    <script src="xlsx.min.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 let processedData = null;
 let automationResults = [];
+let selectedPlatform = 'webbeds';
 
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('fileInput');
@@ -9,6 +10,42 @@ document.addEventListener('DOMContentLoaded', function() {
     const status = document.getElementById('status');
     const fileInfo = document.getElementById('fileInfo');
     const fileName = document.getElementById('fileName');
+    const platformBtns = document.querySelectorAll('.platform-btn');
+    const platformInfo = document.getElementById('platformInfo');
+
+    // اختيار المنصة
+    platformBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            platformBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedPlatform = this.dataset.platform;
+            updatePlatformInfo();
+            resetForm();
+        });
+    });
+
+    function updatePlatformInfo() {
+        const platformInfos = {
+            'webbeds': '<strong>WebBeds:</strong> تأكد من أنك في صفحة الحجوزات',
+            'almatar': '<strong>Almatar:</strong> تأكد من أنك في صفحة قائمة الحجوزات',
+            'eet': '<strong>EET Global:</strong> تأكد من أنك في صفحة قائمة الحجوزات',
+            'traveasy': '<strong>Traveasy:</strong> تأكد من أنك في صفحة قائمة الحجوزات',
+            'tds': '<strong>TDS:</strong> تأكد من أنك في صفحة قائمة الحجوزات',
+            'gte': '<strong>GTE:</strong> تأكد من أنك في صفحة قائمة الحجوزات',
+            'alataya': '<strong>العطايا:</strong> تأكد من أنك في صفحة قائمة الحجوزات'
+        };
+        platformInfo.innerHTML = platformInfos[selectedPlatform] || platformInfos['webbeds'];
+    }
+
+    function resetForm() {
+        processedData = null;
+        fileInfo.style.display = 'none';
+        processBtn.disabled = true;
+        startBtn.disabled = true;
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+        status.innerHTML = '';
+    }
 
     // رفع الملف
     uploadArea.addEventListener('click', () => fileInput.click());
@@ -37,15 +74,9 @@ document.addEventListener('DOMContentLoaded', function() {
     processBtn.addEventListener('click', processFile);
     startBtn.addEventListener('click', startAutomation);
 
-    function isValidNumber(value) {
-        if (!value) return false;
-        const str = String(value).trim();
-        return str !== '' && !isNaN(str) && !isNaN(parseFloat(str));
-    }
-
     function handleFile(file) {
-        if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
-            showStatus('يرجى اختيار ملف Excel أو CSV صحيح', 'error');
+        if (!file.name.match(/\.csv$/)) {
+            showStatus('يرجى اختيار ملف CSV صحيح', 'error');
             return;
         }
 
@@ -53,17 +84,18 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInfo.style.display = 'block';
         processBtn.disabled = false;
         
-        // حفظ الملف كـ base64 string
+        // حفظ الملف
         const reader = new FileReader();
         reader.onload = function(e) {
             chrome.storage.local.set({
                 'uploadedFile': {
                     name: file.name,
-                    data: e.target.result.split(',')[1] // إزالة data:application/... prefix
+                    data: e.target.result,
+                    platform: selectedPlatform
                 }
             });
         };
-        reader.readAsDataURL(file);
+        reader.readAsText(file);
     }
 
     function processFile() {
@@ -73,99 +105,50 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.storage.local.get(['uploadedFile'], function(result) {
             if (result.uploadedFile) {
                 setTimeout(() => {
-                    // تحديد نوع الملف
-                    if (result.uploadedFile.name.endsWith('.csv')) {
-                        parseCSVFile(result.uploadedFile.data);
-                    } else {
-                        parseExcelFile(result.uploadedFile.data);
-                    }
+                    parseCSVFile(result.uploadedFile.data);
                 }, 1000);
             }
         });
     }
-
-    function parseExcelFile(base64Data) {
-        try {
-            // تحويل base64 إلى ArrayBuffer
-            const binaryString = atob(base64Data);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            
-            // قراءة ملف Excel مباشرة
-            const excelData = readExcelFile(bytes.buffer);
-            
-            console.log('بيانات Excel المقروءة:', excelData);
-            
-            // استخراج بيانات الحجوزات
-            const bookingsData = [];
-            
-            excelData.forEach((row, index) => {
-                const clientRef = row['ClientReference'] || row.ClientReference || '';
-                const hotelConf = row['HotelConf'] || row.HotelConf || '';
-                
-                console.log(`السجل ${index + 1}:`, { clientRef, hotelConf });
-                
-                // التحقق من أن hotelConf يحتوي على أرقام فقط
-                if (clientRef && isValidNumber(hotelConf)) {
-                    bookingsData.push({
-                        bookingNumber: clientRef.toString().trim(),
-                        hotelConf: hotelConf.toString().trim()
-                    });
-                }
-            });
-            
-            console.log('بيانات الحجوزات النهائية:', bookingsData);
-            
-            processedData = bookingsData;
-            
-            if (processedData && processedData.length > 0) {
-                showStatus(`تم العثور على ${processedData.length} حجز جاهز للمعالجة`, 'success');
-                startBtn.disabled = false;
-            } else {
-                showStatus('لم يتم العثور على بيانات صحيحة في الملف', 'error');
-            }
-            
-            processBtn.disabled = false;
-            
-            // لا نرجع شيء هنا لأن المعالجة أصبحت غير متزامنة
-        } catch (error) {
-            console.error('خطأ في تحليل الملف:', error);
-            showStatus('خطأ في تحليل ملف Excel: ' + error.message, 'error');
-            processBtn.disabled = false;
-        }
-    }
     
-    function parseCSVFile(base64Data) {
+    function parseCSVFile(csvText) {
         try {
-            // تحويل base64 إلى نص
-            const csvText = atob(base64Data);
-            
             console.log('CSV المقروء:', csvText);
             
-            // تحليل CSV
             const lines = csvText.split('\n');
             const bookingsData = [];
             
             if (lines.length > 1) {
-                const headers = lines[0].split(',');
-                const clientRefIndex = headers.findIndex(h => h.includes('ClientReference'));
-                const hotelConfIndex = headers.findIndex(h => h.includes('HotelConf'));
+                const headers = lines[0].split(',').map(h => h.trim());
+                console.log('Headers:', headers);
                 
-                console.log('مؤشرات الأعمدة:', { clientRefIndex, hotelConfIndex });
+                let bookingIndex, hotelConfIndex;
+                
+                if (selectedPlatform === 'webbeds') {
+                    bookingIndex = headers.findIndex(h => h.includes('ClientReference'));
+                    hotelConfIndex = headers.findIndex(h => h.includes('HotelConf'));
+                } else {
+                    bookingIndex = headers.findIndex(h => h.includes('Booking Code'));
+                    hotelConfIndex = headers.findIndex(h => h.includes('HotelConf'));
+                }
+                
+                console.log('مؤشرات الأعمدة:', { bookingIndex, hotelConfIndex });
+                
+                if (bookingIndex === -1 || hotelConfIndex === -1) {
+                    throw new Error('لم يتم العثور على الأعمدة المطلوبة في الملف');
+                }
                 
                 for (let i = 1; i < lines.length; i++) {
-                    const values = lines[i].split(',');
-                    if (values.length > Math.max(clientRefIndex, hotelConfIndex)) {
-                        const clientRef = values[clientRefIndex]?.trim();
-                        const hotelConf = values[hotelConfIndex]?.trim();
+                    const values = lines[i].split(',').map(v => v.trim());
+                    if (values.length > Math.max(bookingIndex, hotelConfIndex)) {
+                        const bookingCode = values[bookingIndex];
+                        const hotelConf = values[hotelConfIndex];
                         
-                        // التحقق من أن hotelConf يحتوي على أرقام فقط
-                        if (clientRef && isValidNumber(hotelConf)) {
+                        if (bookingCode && hotelConf && bookingCode !== '' && hotelConf !== '') {
                             bookingsData.push({
-                                bookingNumber: clientRef,
-                                hotelConf: hotelConf
+                                bookingNumber: bookingCode,
+                                hotelConf: hotelConf,
+                                platform: selectedPlatform
                             });
                         }
                     }
@@ -203,26 +186,50 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // إرسال البيانات إلى content script
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-            if (tabs[0] && tabs[0].url && tabs[0].url.includes('extranet.webbeds.com')) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                    action: 'startAutomation',
-                    data: processedData
-                }, function(response) {
-                    if (chrome.runtime.lastError) {
-                        showStatus('خطأ في الاتصال: ' + chrome.runtime.lastError.message, 'error');
-                        startBtn.disabled = false;
-                        return;
-                    }
-                    if (response && response.success) {
-                        showStatus('بدأت عملية الأتمتة...', 'info');
-                    } else {
-                        showStatus('خطأ في بدء الأتمتة', 'error');
-                        startBtn.disabled = false;
-                    }
-                });
-            } else {
-                showStatus('يرجى الانتقال إلى صفحة WebBeds أولاً', 'error');
-                startBtn.disabled = false;
+            if (tabs[0] && tabs[0].url) {
+                const validDomains = {
+                    'webbeds': 'extranet.webbeds.com',
+                    'almatar': 'portal.arabiabeds.com',
+                    'eet': 'www.eetglobal.com',
+                    'traveasy': 'hotels.holidayme.com',
+                    'tds': 'go.tdstravel.com',
+                    'gte': 'www.gte.travel',
+                    'alataya': 'www.attaya.travel'
+                };
+                
+                const isValidUrl = tabs[0].url.includes(validDomains[selectedPlatform]);
+                    
+                if (isValidUrl) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        action: 'startAutomation',
+                        data: processedData,
+                        platform: selectedPlatform
+                    }, function(response) {
+                        if (chrome.runtime.lastError) {
+                            showStatus('خطأ في الاتصال: ' + chrome.runtime.lastError.message, 'error');
+                            startBtn.disabled = false;
+                            return;
+                        }
+                        if (response && response.success) {
+                            showStatus('بدأت عملية الأتمتة...', 'info');
+                        } else {
+                            showStatus('خطأ في بدء الأتمتة', 'error');
+                            startBtn.disabled = false;
+                        }
+                    });
+                } else {
+                    const platformNames = {
+                        'webbeds': 'WebBeds',
+                        'almatar': 'Almatar',
+                        'eet': 'EET Global',
+                        'traveasy': 'Traveasy',
+                        'tds': 'TDS',
+                        'gte': 'GTE',
+                        'alataya': 'العطايا'
+                    };
+                    showStatus(`يرجى الانتقال إلى صفحة ${platformNames[selectedPlatform]} أولاً`, 'error');
+                    startBtn.disabled = false;
+                }
             }
         });
     }
@@ -258,7 +265,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('downloadBtn').addEventListener('click', function() {
         const csvContent = generateCSVReport();
-        downloadFile(csvContent, 'webbeds_automation_report.csv');
+        const platformName = selectedPlatform === 'webbeds' ? 'webbeds' : 'almatar';
+        downloadFile(csvContent, `${platformName}_automation_report.csv`);
     });
 
     function generateCSVReport() {

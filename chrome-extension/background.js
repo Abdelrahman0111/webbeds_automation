@@ -1,30 +1,42 @@
 // Background script للتعامل مع الأحداث
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('WebBeds Automation Extension installed');
+    console.log('WebBeds & Almatar Automation Extension installed');
 });
 
-// التعامل مع الرسائل بين المكونات
+// التعامل مع الرسائل بين popup و content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'updateProgress') {
-        // إعادة توجيه رسالة التقدم إلى popup
-        chrome.runtime.sendMessage(request);
-    } else if (request.action === 'automationComplete') {
-        // إعادة توجيه رسالة اكتمال الأتمتة إلى popup
-        chrome.runtime.sendMessage(request);
+    // تمرير الرسائل بين popup و content script
+    if (request.action === 'updateProgress' || request.action === 'automationComplete') {
+        // إرسال الرسالة إلى popup
+        chrome.runtime.sendMessage(request).catch(() => {
+            // تجاهل الخطأ إذا لم يكن popup مفتوح
+        });
     }
+    return true;
 });
 
 // التعامل مع تحديث التبويبات
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url && tab.url.includes('extranet.webbeds.com')) {
-        // تفعيل الإضافة عند تحميل صفحة WebBeds
-        chrome.action.setBadgeText({
-            text: '✓',
-            tabId: tabId
-        });
-        chrome.action.setBadgeBackgroundColor({
-            color: '#4CAF50',
-            tabId: tabId
-        });
+    if (changeInfo.status === 'complete' && tab.url) {
+        const supportedDomains = [
+            'extranet.webbeds.com',
+            'portal.arabiabeds.com',
+            'www.eetglobal.com',
+            'hotels.holidayme.com',
+            'go.tdstravel.com',
+            'www.gte.travel',
+            'www.attaya.travel'
+        ];
+        
+        if (supportedDomains.some(domain => tab.url.includes(domain))) {
+            chrome.action.setBadgeText({
+                text: '✓',
+                tabId: tabId
+            });
+            chrome.action.setBadgeBackgroundColor({
+                color: '#4CAF50',
+                tabId: tabId
+            });
+        }
     }
 });
