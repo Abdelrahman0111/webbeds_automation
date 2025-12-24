@@ -91,38 +91,43 @@ if operation_type == "اختر...":
 st.markdown("---")
 
 # دوال مساعدة
-def load_excel(file, sheet_name=None):
+def load_excel(file, sheet_name=0):
+    """قراءة ملف Excel/CSV بطرق متعددة"""
+    file.seek(0)
+    
+    # محاولة قراءة حسب الامتداء أولاً
     try:
-        file_content = file.read()
-        file.seek(0)  # إعادة المؤشر للبداية
-        
-        # التحقق من نوع الملف بناءً على المحتوى الفعلي
-        if file_content.startswith(b'PK'):  # ملف XLSX بغض النظر عن الامتداد
-            return pd.read_excel(file, sheet_name=sheet_name, engine='openpyxl')
-        elif file_content.startswith(b'\xd0\xcf'):  # ملف XLS بغض النظر عن الامتداد
-            return pd.read_excel(file, sheet_name=sheet_name, engine='xlrd')
-        else:
-            # محاولة قراءته كـ CSV مع إزالة BOM
-            file.seek(0)
+        if file.name.lower().endswith('.csv'):
             return pd.read_csv(file, encoding='utf-8-sig')
-    except Exception as e:
-        try:
-            # محاولة أخرى كـ XLSX إذا فشل
-            file.seek(0)
-            return pd.read_excel(file, sheet_name=sheet_name, engine='openpyxl')
-        except:
-            try:
-                # محاولة أخرى كـ XLS
-                file.seek(0)
-                return pd.read_excel(file, sheet_name=sheet_name, engine='xlrd')
-            except:
-                try:
-                    # محاولة أخرى كـ CSV
-                    file.seek(0)
-                    return pd.read_csv(file, encoding='utf-8-sig')
-                except:
-                    st.error(f"❌ خطأ في تحميل الملف: {str(e)}\n\nتأكد من أن الملف:\n- بصيغة صحيحة (XLSX, XLS, CSV)\n- غير تالف أو معطوب")
-                    return None
+    except:
+        file.seek(0)
+    
+    # محاولة XLSX
+    try:
+        file.seek(0)
+        return pd.read_excel(file, sheet_name=sheet_name, engine='openpyxl')
+    except:
+        pass
+    
+    # محاولة XLS
+    try:
+        file.seek(0)
+        return pd.read_excel(file, sheet_name=sheet_name, engine='xlrd')
+    except:
+        pass
+    
+    # محاولة CSV مع encodings مختلفة
+    try:
+        file.seek(0)
+        return pd.read_csv(file, encoding='utf-8')
+    except:
+        pass
+    
+    try:
+        file.seek(0)
+        return pd.read_csv(file)
+    except:
+        return None
 
 def extract_booking_number(webbeds_booking):
     if pd.isna(webbeds_booking):
@@ -202,196 +207,219 @@ if operation_type == "WebBeds":
     if jood_file and webbeds_file:
         if st.button("🔍 بدء المقارنة والتحليل", key="wb_process", use_container_width=True):
             with st.spinner("⏳ جاري المقارنة والتحليل الذكي..."):
-                jood_df = load_excel(jood_file)
-                webbeds_df = load_excel(webbeds_file)
-                
-                if jood_df is not None and webbeds_df is not None:
-                    # التحقق من الأعمدة المطلوبة
-                    required_webbeds = ['WebBeds Booking Number', 'Supplier reference']
-                    required_jood = ['ClientReference', 'HotelConf']
+                try:
+                    jood_df = load_excel(jood_file)
+                    webbeds_df = load_excel(webbeds_file)
                     
-                    missing_wb = [col for col in required_webbeds if col not in webbeds_df.columns]
-                    missing_jood = [col for col in required_jood if col not in jood_df.columns]
+                    # التحقق من أن النتائج DataFrames وليست None أو dictionaries
+                    if jood_df is not None and webbeds_df is not None:
+                        # تأكد من أنهما DataFrames
+                        if not isinstance(jood_df, pd.DataFrame):
+                            st.error("❌ خطأ في قراءة ملف جود")
+                            jood_df = None
+                        if not isinstance(webbeds_df, pd.DataFrame):
+                            st.error("❌ خطأ في قراءة ملف WebBeds")
+                            webbeds_df = None
                     
-                    if missing_wb:
-                        st.error(f"❌ أعمدة مفقودة في ملف WebBeds: {', '.join(missing_wb)}")
-                    elif missing_jood:
-                        st.error(f"❌ أعمدة مفقودة في ملف جود: {', '.join(missing_jood)}")
-                    else:
-                        # استخراج أرقام الحجز
-                        webbeds_df = webbeds_df.copy()
-                        webbeds_df['BookingNumber'] = webbeds_df['WebBeds Booking Number'].apply(extract_booking_number)
+                    if jood_df is None or webbeds_df is None:
+                        st.error("❌ فشل تحميل أحد الملفات - تأكد من الصيغة والمحتوى")
+                        st.stop()
+                    
+                    if jood_df is not None and webbeds_df is not None:
+                        # التحقق من الأعمدة المطلوبة
+                        required_webbeds = ['WebBeds Booking Number', 'Supplier reference']
+                        required_jood = ['ClientReference', 'HotelConf']
                         
-                        # تحويل ClientReference إلى نص
-                        jood_df = jood_df.copy()
-                        jood_df['Client_ref_clean'] = jood_df['ClientReference'].astype(str)
+                        missing_wb = [col for col in required_webbeds if col not in webbeds_df.columns]
+                        missing_jood = [col for col in required_jood if col not in jood_df.columns]
                         
-                        results = []
-                        automation_data = []
-                        
-                        for idx, wb_row in webbeds_df.iterrows():
-                            booking_number = wb_row['BookingNumber']
-                            supplier_ref = wb_row['Supplier reference']
+                        if missing_wb:
+                            st.error(f"❌ أعمدة مفقودة في ملف WebBeds: {', '.join(missing_wb)}")
+                            st.info(f"📋 الأعمدة الموجودة: {', '.join(webbeds_df.columns.tolist())}")
+                        elif missing_jood:
+                            st.error(f"❌ أعمدة مفقودة في ملف جود: {', '.join(missing_jood)}")
+                            st.info(f"📋 الأعمدة الموجودة: {', '.join(jood_df.columns.tolist())}")
+                        else:
+                            # استخراج أرقام الحجز
+                            webbeds_df = webbeds_df.copy()
+                            webbeds_df['BookingNumber'] = webbeds_df['WebBeds Booking Number'].apply(extract_booking_number)
                             
-                            # البحث عن جميع المطابقات في ملف جود (قد يكون هناك تكرار)
-                            jood_matches = jood_df[jood_df['Client_ref_clean'] == booking_number]
+                            # تحويل ClientReference إلى نص
+                            jood_df = jood_df.copy()
+                            jood_df['Client_ref_clean'] = jood_df['ClientReference'].astype(str)
                             
-                            if not jood_matches.empty:
-                                # التحقق من حالة Supplier Reference
-                                needs_reference = not is_valid_supplier_reference(supplier_ref)
+                            results = []
+                            automation_data = []
+                            
+                            for idx, wb_row in webbeds_df.iterrows():
+                                booking_number = wb_row['BookingNumber']
+                                supplier_ref = wb_row['Supplier reference']
                                 
-                                # إذا كان هناك أكثر من مطابقة واحدة
-                                if len(jood_matches) > 1:
-                                    # جمع جميع HotelConf في نص واحد
-                                    hotel_confs = jood_matches['HotelConf'].tolist()
-                                    hotel_confs_str = ' | '.join([str(hc) for hc in hotel_confs])
+                                # البحث عن جميع المطابقات في ملف جود (قد يكون هناك تكرار)
+                                jood_matches = jood_df[jood_df['Client_ref_clean'] == booking_number]
+                                
+                                if not jood_matches.empty:
+                                    # التحقق من حالة Supplier Reference
+                                    needs_reference = not is_valid_supplier_reference(supplier_ref)
                                     
-                                    result = {
-                                        'WebBeds_Booking_Number': wb_row['WebBeds Booking Number'],
-                                        'Booking_Number': booking_number,
-                                        'Current_Supplier_Reference': supplier_ref,
-                                        'Supplier_Reference_Valid': is_valid_supplier_reference(supplier_ref),
-                                        'Jood_Match': f'موجود ({len(jood_matches)} مرات)',
-                                        'HotelConf': hotel_confs_str,
-                                        'Action_Needed': 'يحتاج إضافة مرجع (متعدد)' if needs_reference else 'موجود بالفعل (متعدد)',
-                                        'Status': 'يحتاج إجراء' if needs_reference else 'مكتمل'
-                                    }
-                                    
-                                    # إضافة كل HotelConf للأتمتة إذا كان يحتاج مرجع
-                                    if needs_reference:
-                                        for _, jood_row in jood_matches.iterrows():
-                                            hotel_conf = jood_row['HotelConf']
-                                            if is_valid_hotel_conf(hotel_conf):
-                                                automation_data.append({
-                                                    'ClientReference': booking_number,
-                                                    'HotelConf': hotel_conf
-                                                })
+                                    # إذا كان هناك أكثر من مطابقة واحدة
+                                    if len(jood_matches) > 1:
+                                        # جمع جميع HotelConf في نص واحد
+                                        hotel_confs = jood_matches['HotelConf'].tolist()
+                                        hotel_confs_str = ' | '.join([str(hc) for hc in hotel_confs])
+                                        
+                                        result = {
+                                            'WebBeds_Booking_Number': wb_row['WebBeds Booking Number'],
+                                            'Booking_Number': booking_number,
+                                            'Current_Supplier_Reference': supplier_ref,
+                                            'Supplier_Reference_Valid': is_valid_supplier_reference(supplier_ref),
+                                            'Jood_Match': f'موجود ({len(jood_matches)} مرات)',
+                                            'HotelConf': hotel_confs_str,
+                                            'Action_Needed': 'يحتاج إضافة مرجع (متعدد)' if needs_reference else 'موجود بالفعل (متعدد)',
+                                            'Status': 'يحتاج إجراء' if needs_reference else 'مكتمل'
+                                        }
+                                        
+                                        # إضافة كل HotelConf للأتمتة إذا كان يحتاج مرجع
+                                        if needs_reference:
+                                            for _, jood_row in jood_matches.iterrows():
+                                                hotel_conf = jood_row['HotelConf']
+                                                if is_valid_hotel_conf(hotel_conf):
+                                                    automation_data.append({
+                                                        'ClientReference': booking_number,
+                                                        'HotelConf': hotel_conf
+                                                    })
+                                    else:
+                                        # مطابقة واحدة فقط
+                                        jood_row = jood_matches.iloc[0]
+                                        htel_rsv = jood_row['HotelConf']
+                                        
+                                        result = {
+                                            'WebBeds_Booking_Number': wb_row['WebBeds Booking Number'],
+                                            'Booking_Number': booking_number,
+                                            'Current_Supplier_Reference': supplier_ref,
+                                            'Supplier_Reference_Valid': is_valid_supplier_reference(supplier_ref),
+                                            'Jood_Match': 'موجود',
+                                            'HotelConf': htel_rsv,
+                                            'Action_Needed': 'يحتاج إضافة مرجع' if needs_reference else 'موجود بالفعل',
+                                            'Status': 'يحتاج إجراء' if needs_reference else 'مكتمل'
+                                        }
+                                        
+                                        # إضافة للأتمتة إذا كان يحتاج مرجع
+                                        if needs_reference and is_valid_hotel_conf(htel_rsv):
+                                            automation_data.append({
+                                                'ClientReference': booking_number,
+                                                'HotelConf': htel_rsv
+                                            })
                                 else:
-                                    # مطابقة واحدة فقط
-                                    jood_row = jood_matches.iloc[0]
-                                    htel_rsv = jood_row['HotelConf']
-                                    
                                     result = {
                                         'WebBeds_Booking_Number': wb_row['WebBeds Booking Number'],
                                         'Booking_Number': booking_number,
                                         'Current_Supplier_Reference': supplier_ref,
                                         'Supplier_Reference_Valid': is_valid_supplier_reference(supplier_ref),
-                                        'Jood_Match': 'موجود',
-                                        'HotelConf': htel_rsv,
-                                        'Action_Needed': 'يحتاج إضافة مرجع' if needs_reference else 'موجود بالفعل',
-                                        'Status': 'يحتاج إجراء' if needs_reference else 'مكتمل'
+                                        'Jood_Match': 'لا يوجد',
+                                        'HotelConf': '',
+                                        'Action_Needed': 'غير موجود في جود',
+                                        'Status': 'لا يحتاج إجراء'
                                     }
-                                    
-                                    # إضافة للأتمتة إذا كان يحتاج مرجع
-                                    if needs_reference and is_valid_hotel_conf(htel_rsv):
-                                        automation_data.append({
-                                            'ClientReference': booking_number,
-                                            'HotelConf': htel_rsv
-                                        })
-                            else:
-                                result = {
-                                    'WebBeds_Booking_Number': wb_row['WebBeds Booking Number'],
-                                    'Booking_Number': booking_number,
-                                    'Current_Supplier_Reference': supplier_ref,
-                                    'Supplier_Reference_Valid': is_valid_supplier_reference(supplier_ref),
-                                    'Jood_Match': 'لا يوجد',
-                                    'HotelConf': '',
-                                    'Action_Needed': 'غير موجود في جود',
-                                    'Status': 'لا يحتاج إجراء'
-                                }
+                                
+                                results.append(result)
                             
-                            results.append(result)
-                        
-                        comparison_results = pd.DataFrame(results)
-                        automation_df = pd.DataFrame(automation_data)
-                        
-                        # عرض النتائج
-                        st.success("✅ تمت المقارنة بنجاح! تحقق من الإحصائيات أدناه")
-                        
-                        # إحصائيات
-                        st.markdown("""
-                            <div class="section-header">
-                                <h3>📊 إحصائيات النتائج</h3>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        col1, col2, col3, col4, col5 = st.columns(5)
-                        with col1:
-                            st.metric("🎯 إجمالي الحجوزات", len(comparison_results))
-                        with col2:
-                            matched = len(comparison_results[comparison_results['Jood_Match'].str.contains('موجود')])
-                            st.metric("✅ موجود في جود", matched)
-                        with col3:
-                            multiple_matches = len(comparison_results[comparison_results['Jood_Match'].str.contains('مرات')])
-                            st.metric("📌 حجوزات متعددة", multiple_matches)
-                        with col4:
-                            need_action = len(comparison_results[comparison_results['Status'] == 'يحتاج إجراء'])
-                            st.metric("⚠️ يحتاج إضافة مرجع", need_action)
-                        with col5:
-                            completed = len(comparison_results[comparison_results['Status'] == 'مكتمل'])
-                            st.metric("✨ مكتمل", completed)
-                        
-                        st.markdown("**📋 جدول النتائج المفصل:**")
-                        st.dataframe(comparison_results, use_container_width=True)
-                        
-                        # تحميل النتائج
-                        st.markdown("---")
-                        st.markdown("**📥 تحميل النتائج:**")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            comparison_excel = export_excel({
-                                'comparison_results': comparison_results,
-                                'need_action': comparison_results[comparison_results['Status'] == 'يحتاج إجراء'],
-                                'completed': comparison_results[comparison_results['Status'] == 'مكتمل']
-                            })
+                            comparison_results = pd.DataFrame(results)
+                            automation_df = pd.DataFrame(automation_data)
                             
-                            st.download_button(
-                                label="📊 تحميل نتائج المقارنة (XLSX)",
-                                data=comparison_excel,
-                                file_name="webbeds_comparison_results.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True
-                            )
-                        
-                        with col2:
-                            if len(automation_df) > 0:
-                                csv_data = automation_df.to_csv(index=False, encoding='utf-8-sig')
+                            # عرض النتائج
+                            st.success("✅ تمت المقارنة بنجاح! تحقق من الإحصائيات أدناه")
+                            
+                            # إحصائيات
+                            st.markdown("""
+                                <div class="section-header">
+                                    <h3>📊 إحصائيات النتائج</h3>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
+                            col1, col2, col3, col4, col5 = st.columns(5)
+                            with col1:
+                                st.metric("🎯 إجمالي الحجوزات", len(comparison_results))
+                            with col2:
+                                matched = len(comparison_results[comparison_results['Jood_Match'].str.contains('موجود')])
+                                st.metric("✅ موجود في جود", matched)
+                            with col3:
+                                multiple_matches = len(comparison_results[comparison_results['Jood_Match'].str.contains('مرات')])
+                                st.metric("📌 حجوزات متعددة", multiple_matches)
+                            with col4:
+                                need_action = len(comparison_results[comparison_results['Status'] == 'يحتاج إجراء'])
+                                st.metric("⚠️ يحتاج إضافة مرجع", need_action)
+                            with col5:
+                                completed = len(comparison_results[comparison_results['Status'] == 'مكتمل'])
+                                st.metric("✨ مكتمل", completed)
+                            
+                            st.markdown("**📋 جدول النتائج المفصل:**")
+                            st.dataframe(comparison_results, use_container_width=True)
+                            
+                            # تحميل النتائج
+                            st.markdown("---")
+                            st.markdown("**📥 تحميل النتائج:**")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                comparison_excel = export_excel({
+                                    'comparison_results': comparison_results,
+                                    'need_action': comparison_results[comparison_results['Status'] == 'يحتاج إجراء'],
+                                    'completed': comparison_results[comparison_results['Status'] == 'مكتمل']
+                                })
+                                
                                 st.download_button(
-                                    label="🤖 تحميل ملف الأتمتة (CSV)",
-                                    data=csv_data,
-                                    file_name="webbeds_automation_data.csv",
-                                    mime="text/csv",
+                                    label="📊 تحميل نتائج المقارنة (XLSX)",
+                                    data=comparison_excel,
+                                    file_name="webbeds_comparison_results.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                     use_container_width=True
                                 )
-                                
-                                # عرض معاينة ملف الأتمتة
-                                st.markdown("---")
-                                st.markdown("""
-                                    <div class="section-header">
-                                        <h3>🤖 معاينة ملف الأتمتة</h3>
-                                        <p>هذا الملف يحتوي على جميع الحجوزات التي تحتاج إضافة مراجع</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # إحصائيات ملف الأتمتة
-                                unique_bookings_auto = automation_df['ClientReference'].nunique()
-                                total_refs_auto = len(automation_df)
-                                
-                                col_auto1, col_auto2 = st.columns(2)
-                                with col_auto1:
-                                    st.metric("🎯 حجوزات فريدة", unique_bookings_auto)
-                                with col_auto2:
-                                    st.metric("📌 إجمالي المراجع المراد إضافتها", total_refs_auto)
-                                
-                                st.info("💡 **ملاحظة:** إذا كان عدد المراجع > عدد الحجوزات، فهذا يعني وجود حجوزات متعددة المراجع بنفس الوقت")
-                                
-                                st.dataframe(automation_df.head(10), use_container_width=True)
-                                
-                                if len(automation_df) > 10:
-                                    st.info(f"... و {len(automation_df) - 10} سجل إضافي")
-                            else:
-                                st.success("✨ ممتاز! لا توجد حجوزات تحتاج إلى أتمتة - جميع المراجع موجودة بالفعل")
+                            
+                            with col2:
+                                if len(automation_df) > 0:
+                                    csv_data = automation_df.to_csv(index=False, encoding='utf-8-sig')
+                                    st.download_button(
+                                        label="🤖 تحميل ملف الأتمتة (CSV)",
+                                        data=csv_data,
+                                        file_name="webbeds_automation_data.csv",
+                                        mime="text/csv",
+                                        use_container_width=True
+                                    )
+                                    
+                                    # عرض معاينة ملف الأتمتة
+                                    st.markdown("---")
+                                    st.markdown("""
+                                        <div class="section-header">
+                                            <h3>🤖 معاينة ملف الأتمتة</h3>
+                                            <p>هذا الملف يحتوي على جميع الحجوزات التي تحتاج إضافة مراجع</p>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    # إحصائيات ملف الأتمتة
+                                    unique_bookings_auto = automation_df['ClientReference'].nunique()
+                                    total_refs_auto = len(automation_df)
+                                    
+                                    col_auto1, col_auto2 = st.columns(2)
+                                    with col_auto1:
+                                        st.metric("🎯 حجوزات فريدة", unique_bookings_auto)
+                                    with col_auto2:
+                                        st.metric("📌 إجمالي المراجع المراد إضافتها", total_refs_auto)
+                                    
+                                    st.info("💡 **ملاحظة:** إذا كان عدد المراجع > عدد الحجوزات، فهذا يعني وجود حجوزات متعددة المراجع بنفس الوقت")
+                                    
+                                    st.dataframe(automation_df.head(10), use_container_width=True)
+                                    
+                                    if len(automation_df) > 10:
+                                        st.info(f"... و {len(automation_df) - 10} سجل إضافي")
+                                else:
+                                    st.success("✨ ممتاز! لا توجد حجوزات تحتاج إلى أتمتة - جميع المراجع موجودة بالفعل")
+                except Exception as e:
+                    st.error(f"❌ حدث خطأ أثناء المقارنة:\n\n{str(e)}")
+                    st.info("💡 **نصائح:**\n" +
+                           "1. تأكد من أن الملفات بصيغة Excel/CSV صحيحة\n" +
+                           "2. تأكد من أسماء الأعمدة الموجودة\n" +
+                           "3. جرّب تحميل الملف مجدداً")
     else:
         st.info("📤 الرجاء تحميل كلا الملفين (جود و WebBeds) لبدء المقارنة")
 
@@ -456,13 +484,24 @@ else:
             with st.spinner(f"⏳ جاري مقارنة {company_name} مع جود..."):
                 try:
                     # قراءة ملف الشركة (مع حذف أول سطرين)
+                    df_company = None
+                    df_jood = None
+                    
                     try:
                         if file_company.name.endswith('.csv'):
                             df_company = pd.read_csv(file_company, skiprows=2, encoding='utf-8-sig')
                         elif file_company.name.endswith('.xlsx'):
-                            df_company = pd.read_excel(file_company, skiprows=2, engine='openpyxl')
+                            result = pd.read_excel(file_company, skiprows=2, engine='openpyxl')
+                            if isinstance(result, dict):
+                                df_company = result[list(result.keys())[0]]
+                            else:
+                                df_company = result
                         elif file_company.name.endswith('.xls'):
-                            df_company = pd.read_excel(file_company, skiprows=2, engine='xlrd')
+                            result = pd.read_excel(file_company, skiprows=2, engine='xlrd')
+                            if isinstance(result, dict):
+                                df_company = result[list(result.keys())[0]]
+                            else:
+                                df_company = result
                         else:
                             # محاولة افتراضية
                             df_company = load_excel(file_company)
@@ -473,14 +512,34 @@ else:
                         file_company.seek(0)
                         
                         if content.startswith(b'PK'):  # XLSX
-                            df_company = pd.read_excel(file_company, skiprows=2, engine='openpyxl')
+                            result = pd.read_excel(file_company, skiprows=2, engine='openpyxl')
+                            if isinstance(result, dict):
+                                df_company = result[list(result.keys())[0]]
+                            else:
+                                df_company = result
                         elif content.startswith(b'\xd0\xcf'):  # XLS
-                            df_company = pd.read_excel(file_company, skiprows=2, engine='xlrd')
+                            result = pd.read_excel(file_company, skiprows=2, engine='xlrd')
+                            if isinstance(result, dict):
+                                df_company = result[list(result.keys())[0]]
+                            else:
+                                df_company = result
                         else:
                             df_company = pd.read_csv(file_company, skiprows=2, encoding='utf-8-sig')
 
                     # قراءة ملف جود
-                    df_jood = pd.read_csv(file_jood, encoding='utf-8-sig')
+                    try:
+                        df_jood = pd.read_csv(file_jood, encoding='utf-8-sig')
+                    except:
+                        file_jood.seek(0)
+                        df_jood = pd.read_csv(file_jood)
+                    
+                    # التحقق من النتائج
+                    if df_company is None or not isinstance(df_company, pd.DataFrame):
+                        st.error("❌ خطأ في قراءة ملف الشركة")
+                        st.stop()
+                    if df_jood is None or not isinstance(df_jood, pd.DataFrame):
+                        st.error("❌ خطأ في قراءة ملف جود")
+                        st.stop()
 
                     # تنظيف أسماء الأعمدة
                     df_company.columns = df_company.columns.str.strip()
